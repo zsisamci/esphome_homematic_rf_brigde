@@ -1,14 +1,14 @@
-/* 
+/*
  *  udphelper.h is part of the HB-RF-ETH firmware - https://github.com/alexreinert/HB-RF-ETH
- *  
+ *
  *  Copyright 2021 Alexander Reinert
- *  
+ *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
- *  
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,8 +23,7 @@
 #include "lwip/udp.h"
 #include "lwip/priv/tcpip_priv.h"
 
-typedef struct
-{
+typedef struct {
   struct tcpip_api_call_data call;
   udp_pcb *pcb;
   const ip_addr_t *addr;
@@ -33,74 +32,99 @@ typedef struct
   err_t err;
 } udp_api_call_t;
 
-typedef struct
-{
+typedef struct {
+  struct tcpip_api_call_data call;
+  udp_pcb *pcb;
+  udp_recv_fn recv;
+  void *recv_arg;
+} udp_recv_api_call_t;
+
+typedef struct {
   pbuf *pb;
   ip4_addr_t addr;
   uint16_t port;
 } udp_event_t;
 
-static err_t _udp_remove_api(struct tcpip_api_call_data *api_call_msg)
-{
-  udp_api_call_t *msg = (udp_api_call_t *)api_call_msg;
+static err_t _udp_remove_api(struct tcpip_api_call_data *api_call_msg) {
+  udp_api_call_t *msg = (udp_api_call_t *) api_call_msg;
   msg->err = 0;
   udp_remove(msg->pcb);
   return msg->err;
 }
 
-static void _udp_remove(struct udp_pcb *pcb)
-{
+static void _udp_remove(struct udp_pcb *pcb) {
   udp_api_call_t msg;
   msg.pcb = pcb;
-  tcpip_api_call(_udp_remove_api, (struct tcpip_api_call_data *)&msg);
+  tcpip_api_call(_udp_remove_api, &msg.call);
 }
 
-static err_t _udp_bind_api(struct tcpip_api_call_data *api_call_msg)
-{
-  udp_api_call_t *msg = (udp_api_call_t *)api_call_msg;
+static err_t _udp_new_api(struct tcpip_api_call_data *api_call_msg) {
+  udp_api_call_t *msg = (udp_api_call_t *) api_call_msg;
+  msg->pcb = udp_new();
+  msg->err = msg->pcb ? ERR_OK : ERR_MEM;
+  return msg->err;
+}
+
+static udp_pcb *_udp_new() {
+  udp_api_call_t msg;
+  tcpip_api_call(_udp_new_api, &msg.call);
+  return msg.pcb;
+}
+
+static err_t _udp_bind_api(struct tcpip_api_call_data *api_call_msg) {
+  udp_api_call_t *msg = (udp_api_call_t *) api_call_msg;
   msg->err = udp_bind(msg->pcb, msg->addr, msg->port);
   return msg->err;
 }
 
-static err_t _udp_bind(struct udp_pcb *pcb, const ip_addr_t *addr, u16_t port)
-{
+static err_t _udp_bind(struct udp_pcb *pcb, const ip_addr_t *addr, u16_t port) {
   udp_api_call_t msg;
   msg.pcb = pcb;
   msg.addr = addr;
   msg.port = port;
-  tcpip_api_call(_udp_bind_api, (struct tcpip_api_call_data *)&msg);
+  tcpip_api_call(_udp_bind_api, &msg.call);
   return msg.err;
 }
 
-static err_t _udp_disconnect_api(struct tcpip_api_call_data *api_call_msg)
-{
-  udp_api_call_t *msg = (udp_api_call_t *)api_call_msg;
+static err_t _udp_disconnect_api(struct tcpip_api_call_data *api_call_msg) {
+  udp_api_call_t *msg = (udp_api_call_t *) api_call_msg;
   msg->err = 0;
   udp_disconnect(msg->pcb);
   return msg->err;
 }
 
-static void _udp_disconnect(struct udp_pcb *pcb)
-{
+static void _udp_disconnect(struct udp_pcb *pcb) {
   udp_api_call_t msg;
   msg.pcb = pcb;
-  tcpip_api_call(_udp_disconnect_api, (struct tcpip_api_call_data *)&msg);
+  tcpip_api_call(_udp_disconnect_api, &msg.call);
 }
 
-static err_t _udp_sendto_api(struct tcpip_api_call_data *api_call_msg)
-{
-  udp_api_call_t *msg = (udp_api_call_t *)api_call_msg;
+static err_t _udp_sendto_api(struct tcpip_api_call_data *api_call_msg) {
+  udp_api_call_t *msg = (udp_api_call_t *) api_call_msg;
   msg->err = udp_sendto(msg->pcb, msg->pb, msg->addr, msg->port);
   return msg->err;
 }
 
-static err_t _udp_sendto(struct udp_pcb *pcb, struct pbuf *pb, const ip_addr_t *addr, u16_t port)
-{
+static err_t _udp_sendto(struct udp_pcb *pcb, struct pbuf *pb, const ip_addr_t *addr, u16_t port) {
   udp_api_call_t msg;
   msg.pcb = pcb;
   msg.addr = addr;
   msg.port = port;
   msg.pb = pb;
-  tcpip_api_call(_udp_sendto_api, (struct tcpip_api_call_data *)&msg);
+  tcpip_api_call(_udp_sendto_api, &msg.call);
   return msg.err;
+}
+
+static err_t _udp_recv_api(struct tcpip_api_call_data *api_call_msg) {
+  udp_recv_api_call_t *msg = (udp_recv_api_call_t *) api_call_msg;
+  udp_recv(msg->pcb, msg->recv, msg->recv_arg);
+  return ERR_OK;
+}
+
+static void _udp_recv(struct udp_pcb *pcb, udp_recv_fn recv, void *recv_arg) {
+  udp_recv_api_call_t msg;
+  msg.pcb = pcb;
+  msg.recv = recv;
+  msg.recv_arg = recv_arg;
+  tcpip_api_call(_udp_recv_api, &msg.call);
 }

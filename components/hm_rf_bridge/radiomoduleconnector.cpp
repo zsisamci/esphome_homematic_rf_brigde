@@ -16,135 +16,102 @@
  *  limitations under the License.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include "radiomoduleconnector.h"
 #include "hmframe.h"
-#include "driver/gpio.h"
-#include "pins.h"
-#include "esp_log.h"
+#include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
+#include "radiomoduledetector_utils.h"
 
 static const char *TAG = "RadioModuleConnector";
 
-void serialQueueHandlerTask(void *parameter)
-{
-    ((RadioModuleConnector *)parameter)->_serialQueueHandler();
+void serialQueueHandlerTask(void *parameter) { ((RadioModuleConnector *) parameter)->_serialQueueHandler(); }
+
+RadioModuleConnector::RadioModuleConnector(BinaryOutput *reset, QueueHandle_t *uart_queue, uart_port_t uart_num,
+                                           size_t buffer_size)
+    : _reset(reset), _uart_queue(*uart_queue), _uart_num(uart_num), _buffer_size(buffer_size) {
+  using namespace std::placeholders;
+  _streamParser = new StreamParser(false, std::bind(&RadioModuleConnector::_handleFrame, this, _1, _2));
 }
 
-RadioModuleConnector::RadioModuleConnector(LED *redLED, LED *greenLed, LED *blueLed) : _redLED(redLED), _greenLED(greenLed), _blueLED(blueLed)
-{
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = 1ULL << HM_RST_PIN;
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-    gpio_config(&io_conf);
-
-    uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .rx_flow_ctrl_thresh = 0,
-        .source_clk = UART_SCLK_APB};
-    uart_param_config(UART_NUM_1, &uart_config);
-    uart_set_pin(UART_NUM_1, HM_TX_PIN, HM_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-
-    using namespace std::placeholders;
-    _streamParser = new StreamParser(false, std::bind(&RadioModuleConnector::_handleFrame, this, _1, _2));
+void RadioModuleConnector::start() {
+  xTaskCreate(serialQueueHandlerTask, "RadioModuleConnector_UART_QueueHandler", 4096, this, 15, &_tHandle);
+  resetModule();
 }
 
-void RadioModuleConnector::start()
-{
-    setLED(false, false, false);
-
-    uart_driver_install(UART_NUM_1, UART_FIFO_LEN * 2, 0, 20, &_uart_queue, 0);
-
-    xTaskCreate(serialQueueHandlerTask, "RadioModuleConnector_UART_QueueHandler", 4096, this, 15, &_tHandle);
-    resetModule();
-}
-
-void RadioModuleConnector::stop()
-{
-    resetModule();
-    uart_driver_delete(UART_NUM_1);
+void RadioModuleConnector::stop() {
+  if (_tHandle) {
     vTaskDelete(_tHandle);
+    _tHandle = nullptr;
+    resetModule();
+  }
 }
 
-void RadioModuleConnector::setFrameHandler(FrameHandler *frameHandler, bool decodeEscaped)
-{
-    atomic_store(&_frameHandler, frameHandler);
-    _streamParser->setDecodeEscaped(decodeEscaped);
+void RadioModuleConnector::setFrameHandler(FrameHandler *frameHandler, bool decodeEscaped) {
+  atomic_store(&_frameHandler, frameHandler);
+  _streamParser->setDecodeEscaped(decodeEscaped);
 }
 
-void RadioModuleConnector::setLED(bool red, bool green, bool blue)
-{
-    _redLED->setState(red ? LED_STATE_ON : LED_STATE_OFF);
-    _greenLED->setState(green ? LED_STATE_ON : LED_STATE_OFF);
-    _blueLED->setState(blue ? LED_STATE_ON : LED_STATE_OFF);
+void RadioModuleConnector::resetModule() {
+  _reset->turn_on();
+  vTaskDelay(50 / portTICK_PERIOD_MS);
+  _reset->turn_off();
+  vTaskDelay(50 / portTICK_PERIOD_MS);
 }
 
-void RadioModuleConnector::resetModule()
-{
-    gpio_set_level(HM_RST_PIN, 1);
-    vTaskDelay(50 / portTICK_PERIOD_MS);
-    gpio_set_level(HM_RST_PIN, 0);
-    vTaskDelay(50 / portTICK_PERIOD_MS);
+void RadioModuleConnector::sendFrame(unsigned char *buffer, uint16_t len) {
+  uart_write_bytes(_uart_num, (const char *) buffer, len);
 }
 
-void RadioModuleConnector::sendFrame(unsigned char *buffer, uint16_t len)
-{
-    uart_write_bytes(UART_NUM_1, (const char *)buffer, len);
-}
+void RadioModuleConnector::_serialQueueHandler() {
+  uart_event_t event;
+  uint8_t *buffer = (uint8_t *) malloc(this->_buffer_size);
 
-void RadioModuleConnector::_serialQueueHandler()
-{
-    uart_event_t event;
-    uint8_t *buffer = (uint8_t *)malloc(UART_FIFO_LEN);
+  uart_flush_input(_uart_num);
 
-    uart_flush_input(UART_NUM_1);
-
-    for (;;)
-    {
-        if (xQueueReceive(_uart_queue, (void *)&event, (portTickType)portMAX_DELAY))
-        {
-            switch (event.type)
-            {
-            case UART_DATA:
-                uart_read_bytes(UART_NUM_1, buffer, event.size, portMAX_DELAY);
-                _streamParser->append(buffer, event.size);
-                break;
-            case UART_FIFO_OVF:
-            case UART_BUFFER_FULL:
-                uart_flush_input(UART_NUM_1);
-                xQueueReset(_uart_queue);
-                _streamParser->flush();
-                break;
-            case UART_BREAK:
-            case UART_PARITY_ERR:
-            case UART_FRAME_ERR:
-                _streamParser->flush();
-                break;
-            default:
-                break;
-            }
-        }
+  for (;;) {
+    if (xQueueReceive(_uart_queue, (void *) &event, (TickType_t) portMAX_DELAY)) {
+      switch (event.type) {
+        case UART_DATA:
+          uart_read_bytes(_uart_num, buffer, event.size, portMAX_DELAY);
+          _streamParser->append(buffer, event.size);
+          break;
+        case UART_FIFO_OVF:
+        case UART_BUFFER_FULL:
+          uart_flush_input(_uart_num);
+          xQueueReset(_uart_queue);
+          _streamParser->flush();
+          break;
+        case UART_BREAK:
+        case UART_PARITY_ERR:
+        case UART_FRAME_ERR:
+          _streamParser->flush();
+          break;
+        default:
+          break;
+      }
     }
+  }
 
-    free(buffer);
-    buffer = NULL;
-    vTaskDelete(NULL);
+  free(buffer);
+  buffer = NULL;
+  vTaskDelete(NULL);
 }
 
-void RadioModuleConnector::_handleFrame(unsigned char *buffer, uint16_t len)
-{
-    FrameHandler *frameHandler = (FrameHandler *)atomic_load(&_frameHandler);
+void RadioModuleConnector::setLED(bool red, bool green, bool blue) {
+  ESP_LOGD(TAG, "red : %s green: %s blue:%s", red ? "on" : "off", green ? "on" : "off", blue ? "on" : "off");
+  if (_redLED)
+    _redLED->set_state(red);
+  if (_greenLED)
+    _greenLED->set_state(green);
+  if (_blueLED)
+    _blueLED->set_state(blue);
+}
 
-    if (frameHandler)
-    {
-        frameHandler->handleFrame(buffer, len);
-    }
+void RadioModuleConnector::_handleFrame(unsigned char *buffer, uint16_t len) {
+  FrameHandler *frameHandler = (FrameHandler *) atomic_load(&_frameHandler);
+
+  if (frameHandler) {
+    frameHandler->handleFrame(buffer, len);
+  }
 }

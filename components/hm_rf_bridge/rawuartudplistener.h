@@ -21,39 +21,39 @@
 #include "lwip/opt.h"
 #include "lwip/inet.h"
 #include "lwip/udp.h"
-#include "lwip/priv/tcpip_priv.h"
+
 #include <atomic>
 #define _Atomic(X) std::atomic<X>
 #include "radiomoduleconnector.h"
 
-class RawUartUdpListener : FrameHandler
-{
-private:
-    RadioModuleConnector *_radioModuleConnector;
-    std::atomic<uint> _remoteAddress;
-    std::atomic<ushort> _remotePort;
-    std::atomic<bool> _connectionStarted;
-    std::atomic<int> _counter;
-    std::atomic<int> _endpointConnectionIdentifier;
-    uint64_t _lastReceivedKeepAlive;
-    udp_pcb *_pcb;
-    QueueHandle_t _udp_queue;
-    TaskHandle_t _tHandle = NULL;
+class RawUartUdpListener : FrameHandler {
+ private:
+  RadioModuleConnector *_radioModuleConnector;
+  std::atomic<uint> _remoteAddress;
+  std::atomic<ushort> _remotePort;
+  std::atomic<bool> _connectionStarted;
+  std::atomic<int> _counter;
+  std::atomic<int> _endpointConnectionIdentifier;
+  uint64_t _lastReceivedKeepAlive;
+  udp_pcb *_pcb;
+  QueueHandle_t _udp_queue;
+  TaskHandle_t _tHandle = NULL;
 
-    void handlePacket(pbuf *pb, ip4_addr_t addr, uint16_t port);
-    void sendMessage(unsigned char command, unsigned char *buffer, size_t len);
+  void handlePacket(pbuf *pb, ip4_addr_t addr, uint16_t port);
+  void sendMessage(unsigned char command, unsigned char *buffer, size_t len);
 
-public:
-    RawUartUdpListener(RadioModuleConnector *radioModuleConnector);
+ public:
+  RawUartUdpListener(RadioModuleConnector *radioModuleConnector);
 
-    void handleFrame(unsigned char *buffer, uint16_t len);
-    void handleEvent();
+  void handleFrame(unsigned char *buffer, uint16_t len);
+  void handleEvent();
 
-    ip4_addr_t getConnectedRemoteAddress();
+  ip4_addr_t getConnectedRemoteAddress();
+  bool isConnected();
 
-    void start();
-    void stop();
+  void start();
+  void stop();
 
-    void _udpQueueHandler();
-    bool _udpReceivePacket(pbuf *pb, const ip_addr_t *addr, uint16_t port);
+  void _udpQueueHandler();
+  bool _udpReceivePacket(pbuf *pb, const ip_addr_t *addr, uint16_t port);
 };
