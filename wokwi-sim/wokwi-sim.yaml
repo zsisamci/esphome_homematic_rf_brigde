@@ -1,0 +1,82 @@
+esphome:
+  name: wokwi-sim
+  friendly_name: wokwi-sim
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    log_level: INFO
+
+wifi:
+  ssid:  Wokwi-GUEST
+    
+external_components:
+  - source:
+      type: local
+      path: ../components
+
+# Enable logging
+logger:
+  level: DEBUG
+
+# Enable Home Assistant API
+api:
+  reboot_timeout: 0s
+
+
+ota:
+  - platform: esphome
+
+
+uart:
+  id: uart_hm
+  rx_pin: GPIO05
+  tx_pin: GPIO17
+  baud_rate: 115200
+
+
+hm_rf_bridge:
+  uart_id: uart_hm
+  reset_output: reset_pin
+  red_led: red_led
+  green_led: green_led
+  connected:
+    name: "CCU Connected"
+  radio_module_type:
+    name: HM Radio Module Type
+  firmware_version:
+    name: "HM Module Firmware Version"
+  serial:
+    name: "HM Module Serial"
+  SGTIN:
+    name: "HM Module SGTIN"
+
+output:
+  - platform: gpio
+    pin: GPIO33
+    id: reset_pin
+    inverted: True
+
+  - platform: ledc
+    pin: GPIO04
+    id: green_led
+
+
+  - platform: ledc
+    pin: GPIO14
+    id: blue_led
+    
+  - platform: ledc
+    pin: GPIO32
+    id: red_led
+
+switch:
+  - platform: output
+    name: "Reset HM Module"
+    output: reset_pin
+
+web_server:
+  port: 80
+  version: 3
+
