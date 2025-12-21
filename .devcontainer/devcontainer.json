@@ -1,0 +1,4 @@
+{
+  "name": "ehrfb-${devcontainerId}",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu"
+}
