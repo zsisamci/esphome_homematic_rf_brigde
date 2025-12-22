@@ -1,4 +1,9 @@
 {
   "name": "ehrfb-${devcontainerId}",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu"
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "postCreateCommand": {
+    "install-wasi": "bash .devcontainer/install-wasi-sdk.sh",
+    "install-esphome": "bash .devcontainer/install-esphome.sh"
+}
+
 }
