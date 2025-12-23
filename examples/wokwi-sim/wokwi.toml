@@ -1,0 +1,15 @@
+[wokwi]
+version = 1
+elf = ".esphome/build/wokwi-sim/.pioenvs/wokwi-sim/firmware.elf"
+firmware = ".esphome/build/wokwi-sim/.pioenvs/wokwi-sim/firmware.bin"
+
+
+# web interface
+[[net.forward]]
+from = "localhost:8080"
+to = "target:80"
+
+#esphome api
+[[net.forward]]
+from = "localhost:6053"
+to = "target:6053"
