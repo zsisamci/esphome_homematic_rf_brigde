@@ -1,0 +1,14 @@
+{
+  "name": "hm-mod-rpi",
+  "author": "",
+  "pins": [
+    "RX",
+    "TX",
+    "RESET",
+    "",
+     "GND",
+    "VCC",
+     ""
+  ],
+  "controls": []
+}

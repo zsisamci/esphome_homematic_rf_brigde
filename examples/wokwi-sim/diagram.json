@@ -9,11 +9,28 @@
       "top": -172.8,
       "left": -254.36,
       "attrs": {}
-    }
+    },
+    {
+      "type": "wokwi-rgb-led",
+      "id": "rgb1",
+      "top": -264.8,
+      "left": -171.7,
+      "attrs": { "common": "cathode" }
+    },
+    { "type": "chip-hm-mod-rpi", "id": "chip1", "top": -56.58, "left": -100.8, "attrs": {} }
   ],
   "connections": [
     [ "esp:TX", "$serialMonitor:RX", "", [] ],
-    [ "esp:RX", "$serialMonitor:TX", "", [] ]
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:GND.2", "rgb1:COM", "black", [ "v0" ] ],
+    [ "esp:23", "rgb1:R", "red", [ "h0" ] ],
+    [ "esp:22", "rgb1:G", "green", [ "h0" ] ],
+    [ "esp:21", "rgb1:B", "blue", [ "h0" ] ],
+    [ "esp:16", "chip1:TX", "yellow", [ "h0" ] ],
+    [ "esp:17", "chip1:RX", "cyan", [ "h0" ] ],
+    [ "esp:4", "chip1:RESET", "blue", [ "h0" ] ],
+    [ "esp:3V3", "chip1:VCC", "red", [ "h0" ] ],
+    [ "esp:GND.2", "chip1:GND", "black", [ "v0" ] ]
   ],
   "dependencies": {}
 }
