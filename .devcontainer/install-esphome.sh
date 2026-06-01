@@ -5,7 +5,7 @@ set -e
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 #install esphome (using python 3.12)
-uv tool install --python 3.12 esphome
+uv tool install --python 3.12 esphome==2026.1.0
 
 echo "esphome installed"
 
