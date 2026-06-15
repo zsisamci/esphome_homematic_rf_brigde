@@ -6,7 +6,7 @@ Dieses Projekt portiert die **HB‑RF‑ETH‑Firmware** auf **ESPHome** und erl
 
 ##  Kompatibilität
 
-Diese External Component ist kompitable bis **ESPHome 2026.1**
+Diese External Component ist kompitable ab **ESPHome 2026.5**, es benutz ein patched esphome uart component, die die uart event queue wieder hinzufügt
 
 Erfolgreich auf einem WT32‑ETH01 getestet und auf dem ESP32‑basierten Zigbee‑Gateway ZB‑GW03 produktiv im Einsatz.
 
